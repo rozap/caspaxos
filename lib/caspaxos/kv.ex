@@ -1,5 +1,11 @@
 defmodule Caspaxos.KV do
   alias Caspaxos.{Proposer, Acceptor}
+  require Logger
+
+  defmodule Store do
+    defstruct [:f]
+  end
+
 
   def start(f) do
     Proposer.group_init()
@@ -16,27 +22,37 @@ defmodule Caspaxos.KV do
       Acceptor.start_link()
     end)
 
-    :ok
+    %Store{f: f}
   end
 
-  def put(key, val) do
-    Proposer.submit(fn 
+  def put(%Store{f: f}, key, val) do
+    Logger.debug(inspect {key, val})
+    result = Proposer.closest(key)
+    |> Proposer.submit(fn 
       nil ->   {:ok, Map.put(%{}, key, val)}
       state -> {:ok, Map.put(state, key, val)}
-    end)
+    end, f)
+    Logger.debug(inspect {:result, result})
+    result
   end
 
-  def get(key) do
-    Proposer.submit(fn
+  def get(%Store{f: f}, key) do
+    Logger.debug(key)
+
+    result = Proposer.closest(key)
+    |> Proposer.submit(fn
       nil ->   {nil, nil}
       state -> {Map.get(state, key), state}
-    end)
+    end, f) 
+    Logger.debug(inspect {:result, result})
+    result
   end
 
   def toy() do
-    start(3)
-    put(:foo, :bar) |> IO.inspect
-    put(:biz, :buzz) |> IO.inspect
-    get(:foo) |> IO.inspect
+    store = start(2)
+    put(store, :foo, :bar)
+    # put(:foo, :wat)
+    put(store, :biz, :buzz)
+    get(store, :foo)
   end
 end
